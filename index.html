@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐶 나의 강아지</title>
+<style>
+:root{
+  --bg:#f5f8ff;--panel:#fff;--border:#d0d8ff;
+  --accent:#6b7cff;--danger:#ff6b6b;--good:#6dd58c
+}
+*{box-sizing:border-box;font-family:system-ui}
+body{margin:0;background:linear-gradient(180deg,#eef2ff,#fff)}
+.hidden{display:none}
+.wrap{max-width:900px;margin:auto;padding:16px}
+.panel{background:#fff;border-radius:20px;padding:18px;box-shadow:0 20px 40px rgba(0,0,0,.1)}
+button{border:none;border-radius:14px;padding:14px;font-weight:700}
+.primary{background:var(--accent);color:#fff}
+.grid{display:grid;gap:12px}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.dog{font-size:130px;text-align:center}
+.bar{height:12px;background:#e5e9ff;border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--good),#9af0b7)}
+.danger{background:linear-gradient(90deg,var(--danger),#ffb3b3)!important}
+.bottom{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff}
+.bottom button{flex:1}
+.msg{text-align:center;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div class="wrap" id="auth">
+<h1>🐶 나의 강아지</h1>
+<div class="panel">
+<input id="jid" placeholder="아이디"><br>
+<input id="jpw" type="password" placeholder="비밀번호"><br>
+<button class="primary" onclick="join()">회원가입</button>
+<hr>
+<input id="lid" placeholder="아이디"><br>
+<input id="lpw" type="password" placeholder="비밀번호"><br>
+<button class="primary" onclick="login()">로그인</button>
+<p id="authMsg" class="msg"></p>
+</div>
+</div>
+
+<!-- SLOT -->
+<div class="wrap hidden" id="slot">
+<h2>🐕 강아지 선택</h2>
+<div class="grid grid-3" id="slotList"></div>
+<button class="primary" onclick="newDog()">➕ 새 강아지</button>
+</div>
+
+<!-- GAME -->
+<div class="wrap hidden" id="game">
+<div class="panel">
+<div class="dog" id="dogEl">🐕</div>
+<p class="msg" id="msg"></p>
+
+<div>🍖 배부름<div class="bar"><i id="hunger"></i></div></div>
+<div>😊 행복<div class="bar"><i id="happy"></i></div></div>
+<div>⚡ 에너지<div class="bar"><i id="energy"></i></div></div>
+
+<p class="msg">💰 <span id="money"></span> 코인</p>
+
+<div class="grid grid-3">
+<button onclick="feed()">🍪 간식 (20)</button>
+<button onclick="play()">🎾 놀기</button>
+<button onclick="sleepDog()">🛏 잠자기</button>
+<button onclick="saveUser()">💾 저장</button>
+<button onclick="logout()">🚪 로그아웃</button>
+</div>
+</div>
+</div>
+
+<script>
+const $=e=>document.getElementById(e)
+const clamp=v=>Math.max(0,Math.min(100,v))
+let user=null,users=null,dog=null,timer=null
+
+async function hash(t){
+ const b=new TextEncoder().encode(t)
+ const h=await crypto.subtle.digest('SHA-256',b)
+ return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')
+}
+
+async function join(){
+ if(!jid.value||!jpw.value)return
+ if(localStorage.getItem('u_'+jid.value))return
+ localStorage.setItem('u_'+jid.value,JSON.stringify({pw:await hash(jpw.value),dogs:[]}))
+ authMsg.textContent='가입 완료'
+}
+
+async function login(){
+ const u=localStorage.getItem('u_'+lid.value)
+ if(!u)return
+ const o=JSON.parse(u)
+ if(o.pw!==await hash(lpw.value))return
+ user=lid.value;users=o
+ auth.classList.add('hidden');slot.classList.remove('hidden')
+ renderSlots()
+}
+
+function renderSlots(){
+ slotList.innerHTML=''
+ users.dogs.forEach((d,i)=>{
+  slotList.innerHTML+=`
+   <div class="panel">
+    <div class="dog">${d.skin}</div>
+    <button onclick="selectDog(${i})">선택</button>
+   </div>`
+ })
+}
+
+function newDog(){
+ users.dogs.push({skin:'🐕',hunger:40,happy:60,tired:30,money:100})
+ saveUser();renderSlots()
+}
+
+function selectDog(i){
+ dog=users.dogs[i]
+ slot.classList.add('hidden')
+ game.classList.remove('hidden')
+ start()
+}
+
+function start(){
+ render()
+ clearInterval(timer)
+ timer=setInterval(tick,1000)
+}
+
+function tick(){
+ dog.hunger=clamp(dog.hunger+0.05)
+ dog.happy=clamp(dog.happy-0.05)
+ dog.tired=clamp(dog.tired+0.05)
+
+ if(dog.hunger>=100||dog.happy<=0||dog.tired>=100){
+  dog.money=Math.max(0,dog.money-20)
+  msg.textContent='⚠️ 관리 실패! -20코인'
+ }
+ render()
+}
+
+function feed(){
+ if(dog.money<20){msg.textContent='코인 부족';return}
+ dog.money-=20
+ dog.hunger=clamp(dog.hunger-40)
+ msg.textContent='🍪 냠냠!'
+}
+
+function play(){
+ dog.happy=clamp(dog.happy+25)
+ dog.tired=clamp(dog.tired+10)
+ dog.money+=10
+ msg.textContent='🎾 신나게 놀았다!'
+}
+
+function sleepDog(){
+ dog.tired=clamp(dog.tired-40)
+ dog.hunger=clamp(dog.hunger+10)
+ dog.money+=10
+ msg.textContent='🛏 푹 잠!'
+}
+
+function render(){
+ money.textContent=dog.money
+ dogEl.textContent=dog.skin
+ setBar('hunger',100-dog.hunger)
+ setBar('happy',dog.happy)
+ setBar('energy',100-dog.tired)
+}
+
+function setBar(id,v){
+ const e=$(id)
+ e.style.width=v+'%'
+ e.classList.toggle('danger',v<25)
+}
+
+function saveUser(){
+ localStorage.setItem('u_'+user,JSON.stringify(users))
+ msg.textContent='💾 저장 완료!'
+}
+
+function logout(){
+ saveUser()
+ location.reload()
+}
+</script>
+</body>
+</html>
